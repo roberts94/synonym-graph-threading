@@ -1,0 +1,17 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Sun Mar  3 00:26:38 2019
+
+@author: msyob
+"""
+
+from util import get_graph, replace
+
+v, e = get_graph('emotion.csv')
+sentence = "I want to go to the park."
+new_poems = open("copies.txt", "w", encoding="utf-8")
+
+for _ in range(100):
+    print(replace(sentence, v, e))
+
+new_poems.close()    
