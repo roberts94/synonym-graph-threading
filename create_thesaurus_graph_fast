@@ -1,0 +1,45 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Feb 22 21:24:30 2019
+
+@author: Ross Roberts
+"""
+
+import re
+import scrapy
+
+start = 'run'
+length = len(start)
+vertices = set()
+edges = set()
+
+
+class GraphItem(scrapy.Item):
+    v = scrapy.Field()
+    e = scrapy.Field()
+
+    
+class SGTSpider(scrapy.Spider):
+    name = "sgt_spider"
+    start_urls = ['http://www.thesaurus.com/browse/' + start]
+    
+    
+    def parse(self, response):          
+        word = response.xpath('.//section/div/div/h1/text()').extract()[0]
+        vertices.add(word)
+        item = GraphItem()
+        item['v'] = word
+        yield item      
+        for words in response.xpath('.//section/section[1]/ul/li/span/a'):
+            url = words.xpath('@href').extract()[0]
+            next_word = words.xpath('text()').extract()[0]
+            if len(next_word) == length and re.match('([a-z]{'+str(length)+'})', next_word): 
+                to_add = [word, next_word]
+                to_add.sort()
+                if tuple(to_add) not in edges:
+                    edges.add(tuple(to_add))
+                    item = GraphItem()
+                    item['e'] = to_add
+                    yield item       
+                if next_word not in vertices:
+                    yield response.follow(url, callback=self.parse)
