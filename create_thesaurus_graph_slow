@@ -1,0 +1,64 @@
+# -*- coding: utf-8 -*-
+"""
+@author: Ross Roberts
+"""
+
+import re
+import scrapy
+from scrapy.http.request import Request
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+chromedriver = 'C:/Users/msyob/Anaconda3/chromedriver_win32/chromedriver.exe'
+chromeOptions = webdriver.ChromeOptions()
+prefs={"profile.managed_default_content_settings.images": 2, 
+       'disk-cache-size': 4096 }
+chromeOptions.add_experimental_option("prefs", prefs)
+
+start = 'can'
+length = len(start)
+vertices = set()
+edges = set()
+
+
+class GraphItem(scrapy.Item):
+    v = scrapy.Field()
+    e = scrapy.Field()
+
+    
+class SGTSpider(scrapy.Spider):
+    name = "sgt_spider"
+    start_urls = ['http://www.thesaurus.com/browse/' + start]
+    custom_settings = {'CONCURRENT_REQUESTS': 1}
+      
+    def parse(self, response): 
+        driver = webdriver.Chrome(chromedriver, chrome_options=chromeOptions)
+        driver.get(response.url)
+        wait = WebDriverWait(driver, 10)
+        word = response.xpath('.//section/div/div/h1/text()').extract()[0]
+        vertices.add(word)
+        item = GraphItem()
+        item['v'] = word
+        yield item 
+        words_to_follow = []
+        for tab in wait.until(EC.presence_of_all_elements_located((By.XPATH, './/div/ul/li/a/strong'))):
+            tab.click()
+            for words in wait.until(EC.visibility_of_all_elements_located((By.XPATH, './/section/section[1]/ul/li/span/a'))):
+                next_word = words.text  
+                if len(next_word) == length and re.match('([a-z]{'+str(length)+'})', next_word):   
+                    to_add = [word, next_word]
+                    to_add.sort()
+                    if tuple(to_add) not in edges:
+                        edges.add(tuple(to_add))
+                        item = GraphItem()
+                        item['e'] = to_add
+                        yield item     
+                    if next_word not in vertices:
+                        words_to_follow.append(next_word)                   
+        driver.quit()       
+        for word in words_to_follow:
+            yield Request('http://www.thesaurus.com/browse/' + word, 
+                          callback=self.parse)
+        
